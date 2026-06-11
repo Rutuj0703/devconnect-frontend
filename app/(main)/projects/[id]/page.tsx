@@ -29,20 +29,25 @@ export default function ProjectDetailPage() {
   const [likeCount, setLikeCount] = useState(0);
 
   useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        const res = await api.get(`/projects/${id}`);
-        setProject(res.data.project);
-        setLikeCount(res.data.project._count.likes);
-      } catch {
+  const fetchProject = async () => {
+    try {
+      const res = await api.get(`/projects/${id}`);
+      const data = res.data;
+      console.log("Project response:", JSON.stringify(data, null, 2));
+      setProject(data);
+      setLikeCount(data?._count?.likes ?? 0);
+    } catch (err: any) {
+      console.log("Fetch error:", err);
+      if (err.response?.status === 404) {
         toast.error("Project not found");
         router.push("/feed");
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchProject();
-  }, [id]);
+    } finally{
+      setLoading(false);
+    }
+  };
+  fetchProject();
+}, [id]);
 
   const handleLike = async () => {
     if (!isLoggedIn) {
@@ -120,7 +125,7 @@ export default function ProjectDetailPage() {
       <div className="flex items-center justify-between">
         <Link href={`/users/${project.user.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={project.user.avatar ?? ""} />
+            <AvatarImage src={project.user.avatarUrl ?? ""} />
             <AvatarFallback>{project.user.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
@@ -134,7 +139,7 @@ export default function ProjectDetailPage() {
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <Eye className="h-4 w-4" />
-            {project.viewCount}
+            {project.viewsCount}
           </span>
           <button
             onClick={handleLike}
@@ -152,8 +157,8 @@ export default function ProjectDetailPage() {
       {project.tags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {project.tags.map((tag) => (
-            <Badge key={tag.id} variant="secondary">
-              {tag.name}
+            <Badge key={tag.tag.id} variant="secondary">
+              {tag.tag.name}
             </Badge>
           ))}
         </div>
@@ -170,12 +175,12 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Video Player */}
-      {project.videoUrl && (
+      {project.demoVideoUrl && (
         <>
           <Separator />
           <div>
             <h2 className="text-lg font-semibold mb-3">Demo Video</h2>
-            <VideoPlayer url={project.videoUrl} />
+            <VideoPlayer url={project.demoVideoUrl} />
           </div>
         </>
       )}

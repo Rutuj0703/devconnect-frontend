@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { MapPin, Calendar, Users } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,11 +16,32 @@ import { Project, User } from "@/types";
 import ProjectCard from "@/components/feed/ProjectCard";
 
 interface UserStats {
-  projects: number;
-  followers: number;
-  following: number;
+  projectsCount: number;
+  followersCount: number;
+  followingCount: number;
   totalLikes: number;
   totalComments: number;
+}
+
+interface ProjectTag {
+  projectId: string;
+  tagId: string;
+  tag: { id: string; name: string };
+}
+
+interface ProjectApiResponse {
+  id: string;
+  title: string;
+  description: string;
+  repoUrl: string | null;
+  liveUrl: string | null;
+  coverImage: string | null;
+  demoVideoUrl: string | null;
+  viewsCount: number;
+  createdAt: string;
+  user: User;
+  tags: ProjectTag[];
+  _count?: { likes: number; comments: number };
 }
 
 export default function UserProfilePage() {
@@ -31,28 +52,52 @@ export default function UserProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
   const isOwnProfile = currentUser?.id === id;
 
+  const mapProjectResponse = (project: ProjectApiResponse): Project => ({
+    id: project.id,
+    title: project.title,
+    description: project.description,
+    repoUrl: project.repoUrl ?? null,
+    liveUrl: project.liveUrl ?? null,
+    coverImage: project.coverImage ?? null,
+    demoVideoUrl: project.demoVideoUrl ?? null,
+    viewsCount: project.viewsCount,
+    createdAt: project.createdAt,
+    user: project.user,
+    tags: project.tags,
+    _count: project._count ?? { likes: 0, comments: 0 },
+  });
+
   useEffect(() => {
+    if (!id) return;
+
     const fetchProfile = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
         const [userRes, statsRes, projectsRes] = await Promise.all([
-          api.get(`/users/${id}`),
-          api.get(`/users/${id}/stats`),
-          api.get(`/projects/user/${id}`),
+          api.get<User>(`/users/${id}`),
+          api.get<UserStats>(`/users/${id}/stats`),
+          api.get<ProjectApiResponse[]>(`/users/${id}/projects`),
         ]);
-        setUser(userRes.data.user);
-        setStats(statsRes.data.stats);
-        setProjects(projectsRes.data.projects);
-      } catch {
-        toast.error("User not found");
+
+        setUser(userRes.data);
+        setStats(statsRes.data);
+        setProjects(projectsRes.data.map(mapProjectResponse));
+      } catch (err) {
+        console.error("Failed to load profile", err);
+        setError("Unable to load this profile at the moment.");
       } finally {
         setLoading(false);
       }
     };
+
     fetchProfile();
   }, [id]);
 
@@ -61,13 +106,16 @@ export default function UserProfilePage() {
       toast.error("Please login to follow users");
       return;
     }
+
+    if (!id) return;
+
     try {
       setFollowLoading(true);
       if (isFollowing) {
         await api.delete(`/users/${id}/follow`);
         setIsFollowing(false);
         setStats((prev) =>
-          prev ? { ...prev, followers: prev.followers - 1 } : prev
+          prev ? { ...prev, followers: Math.max(prev.followers - 1, 0) } : prev
         );
       } else {
         await api.post(`/users/${id}/follow`);
@@ -76,22 +124,35 @@ export default function UserProfilePage() {
           prev ? { ...prev, followers: prev.followers + 1 } : prev
         );
       }
-    } catch {
-      toast.error("Something went wrong");
+    } catch (err) {
+      console.error("Follow error", err);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setFollowLoading(false);
     }
   };
 
   if (loading) return <ProfileSkeleton />;
-  if (!user) return null;
+
+  if (error)
+    return (
+      <div className="max-w-4xl mx-auto py-12 text-center text-muted-foreground">
+        {error}
+      </div>
+    );
+
+  if (!user)
+    return (
+      <div className="max-w-4xl mx-auto py-12 text-center text-muted-foreground">
+        User not found.
+      </div>
+    );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Profile Header */}
       <div className="flex flex-col sm:flex-row gap-6 items-start">
         <Avatar className="h-24 w-24 shrink-0">
-          <AvatarImage src={user.avatar ?? ""} />
+          <AvatarImage src={user.avatarUrl ?? ""} />
           <AvatarFallback className="text-3xl">
             {user.name.charAt(0).toUpperCase()}
           </AvatarFallback>
@@ -124,12 +185,8 @@ export default function UserProfilePage() {
             )}
           </div>
 
-          {/* Bio */}
-          {user.bio && (
-            <p className="text-sm leading-relaxed">{user.bio}</p>
-          )}
+          {user.bio && <p className="text-sm leading-relaxed">{user.bio}</p>}
 
-          {/* Meta */}
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="h-3.5 w-3.5" />
@@ -139,13 +196,12 @@ export default function UserProfilePage() {
         </div>
       </div>
 
-      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
-            { label: "Projects", value: stats.projects },
-            { label: "Followers", value: stats.followers },
-            { label: "Following", value: stats.following },
+            { label: "Projects", value: stats.projectsCount },
+            { label: "Followers", value: stats.followersCount },
+            { label: "Following", value: stats.followingCount },
             { label: "Total Likes", value: stats.totalLikes },
             { label: "Comments", value: stats.totalComments },
           ].map((stat) => (
@@ -162,7 +218,6 @@ export default function UserProfilePage() {
 
       <Separator />
 
-      {/* Tabs */}
       <Tabs defaultValue="projects">
         <TabsList>
           <TabsTrigger value="projects">
@@ -171,7 +226,6 @@ export default function UserProfilePage() {
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
-        {/* Projects Tab */}
         <TabsContent value="projects" className="mt-6">
           {projects.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">
@@ -182,13 +236,16 @@ export default function UserProfilePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  onDelete={(projectId) => setProjects((prev) => prev.filter((p) => p.id !== projectId))}
+                />
               ))}
             </div>
           )}
         </TabsContent>
 
-        {/* Activity Tab */}
         <TabsContent value="activity" className="mt-6">
           <ActivityFeed userId={id as string} />
         </TabsContent>
@@ -202,10 +259,12 @@ function ActivityFeed({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!userId) return;
+
     const fetchActivity = async () => {
       try {
         const res = await api.get(`/users/${userId}/activity`);
-        setActivity(res.data.activity);
+        setActivity(res.data.activity || []);
       } catch {
         // fail silently
       } finally {

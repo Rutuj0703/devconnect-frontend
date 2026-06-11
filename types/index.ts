@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatar: string | null;
+  avatarUrl: string | null;
   bio: string | null;
   createdAt: string;
 }
@@ -14,12 +14,12 @@ export interface Project {
   repoUrl: string | null;
   liveUrl: string | null;
   coverImage: string | null;
-  videoUrl: string | null;
-  viewCount: number;
+  demoVideoUrl: string | null;
+  viewsCount: number;
   createdAt: string;
   user: User;
-  tags: Tag[];
-  _count: {
+  tags: ProjectTag[];
+  _count?: {
     likes: number;
     comments: number;
   };
@@ -30,11 +30,25 @@ export interface Tag {
   name: string;
 }
 
+export interface ProjectTag {
+  projectId: string;
+  tagId: string;
+  tag: Tag;
+}
+
 export interface Comment {
   id: string;
   content: string;
   createdAt: string;
-  user: User;
+  updatedAt: string;
+  userId: string;
+  projectId: string;
+  parentId: string | null;
+  user: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
   replies?: Comment[];
 }
 

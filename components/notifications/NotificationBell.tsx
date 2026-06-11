@@ -57,11 +57,14 @@ export function NotificationBell(){
         }
     };
     const getNotificationText = (n: Notification) => {
+        const actorName = n.actor?.name ?? "Someone";
+        const projectTitle = n.project?.title ?? "your project";
+
         switch (n.type) {
-        case "LIKE": return `${n.actor.name} liked your project ${n.project?.title}`;
-        case "COMMENT": return `${n.actor.name} commented on ${n.project?.title}`;
-        case "FOLLOW": return `${n.actor.name} started following you`;
-        case "REPLY": return `${n.actor.name} replied to your comment`;
+        case "LIKE": return `${actorName} liked ${projectTitle}`;
+        case "COMMENT": return `${actorName} commented on ${projectTitle}`;
+        case "FOLLOW": return `${actorName} started following you`;
+        case "REPLY": return `${actorName} replied to your comment`;
         default: return "New notification";
         }
     };

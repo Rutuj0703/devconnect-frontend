@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -12,30 +13,42 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import api from "@/lib/axios";
 import { useAuthStore } from "@/store/authStore";
 
-const loginSchema=z.object({
+const registerSchema=z.object({
+    name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6,"Password must have atleast 6 characters"),
+    confirmPassword: z.string(),
+    }).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
 });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type RegisterForm = z.infer<typeof registerSchema>;
 
-export default function Loginpage(){
+export default function Registerpage(){
     const router= useRouter();
     const { login } = useAuthStore();
     const [error,setError] = useState<string|null>(null);
     const [loading,setLoading]=useState(false); 
-    const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
-        resolver: zodResolver(loginSchema),
+    const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
+        resolver: zodResolver(registerSchema),
     });
-    const onSubmit=async(data:LoginForm)=>{
+    const onSubmit=async(data:RegisterForm)=>{
         try{
             setLoading(true);
             setError(null);
-            const res= await api.post("/auth/login",data);
-            login(res.data.user,res.data.accessToken);
+            const res= await api.post("/auth/register",{
+                name: data.name,
+                email: data.email,
+                password: data.password,
+            });
+            const token = res.data.accessToken;
+            localStorage.setItem("accessToken", token);
+            const userRes = await api.get("/users/me");
+            login(userRes.data, token);
             router.push("/feed");
         } catch(err:any){
-            setError(err.response?.data?.message || "Login failed. Try again.");
+            setError(err.response?.data?.message || "Registration failed. Try again.");
         } finally {
             setLoading(false);
         }
@@ -43,12 +56,12 @@ export default function Loginpage(){
     const handleGithubLogin=()=>{
         window.location.href=`${process.env.NEXT_PUBLIC_API_URL}/auth/github`;
     };
-    return (
+     return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-          <CardDescription>Sign in to your DevConnect account</CardDescription>
+          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+          <CardDescription>Join DevConnect and showcase your work</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -73,8 +86,20 @@ export default function Loginpage(){
             </div>
           </div>
 
-          {/* Email/Password Form */}
+          {/* Registration Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                placeholder="John Doe"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name.message}</p>
+              )}
+            </div>
+
             <div className="space-y-1">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -101,21 +126,34 @@ export default function Loginpage(){
               )}
             </div>
 
+            <div className="space-y-1">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••••"
+                {...register("confirmPassword")}
+              />
+              {errors.confirmPassword && (
+                <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+              )}
+            </div>
+
             {error && (
               <p className="text-sm text-destructive text-center">{error}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Creating account..." : "Create account"}
             </Button>
           </form>
         </CardContent>
 
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-primary font-medium hover:underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/login" className="text-primary font-medium hover:underline">
+              Sign in
             </Link>
           </p>
         </CardFooter>

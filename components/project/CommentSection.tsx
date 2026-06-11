@@ -24,11 +24,25 @@ export default function CommentSection({ projectId }: CommentSectionProps) {
 
   useEffect(() => {
     const fetchComments = async () => {
+      if (!projectId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await api.get(`/projects/${projectId}/comments`);
-        setComments(res.data.comments);
-      } catch {
-        // fail silently
+        const data = res.data;
+        const parsedComments = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.comments)
+          ? data.comments
+          : Array.isArray(data?.data)
+          ? data.data
+          : [];
+        setComments(parsedComments);
+      } catch (error) {
+        console.error("Failed to load comments", error);
+        toast.error("Unable to load comments");
       } finally {
         setLoading(false);
       }
@@ -43,7 +57,9 @@ export default function CommentSection({ projectId }: CommentSectionProps) {
       const res = await api.post(`/projects/${projectId}/comments`, {
         content: newComment,
       });
-      setComments((prev) => [res.data.comment, ...prev]);
+      // backend returns comment directly, not wrapped in { comment: ... }
+      const posted = res.data.comment ?? res.data;
+      setComments((prev) => [posted, ...prev]);
       setNewComment("");
       toast.success("Comment posted");
     } catch {
@@ -59,11 +75,10 @@ export default function CommentSection({ projectId }: CommentSectionProps) {
         Comments {comments.length > 0 && `(${comments.length})`}
       </h2>
 
-      {/* New Comment */}
       {isLoggedIn ? (
         <div className="flex gap-3">
           <Avatar className="h-8 w-8 shrink-0">
-            <AvatarImage src={user?.avatar ?? ""} />
+            <AvatarImage src={user?.avatarUrl ?? ""} />
             <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 space-y-2">
@@ -88,7 +103,6 @@ export default function CommentSection({ projectId }: CommentSectionProps) {
         </p>
       )}
 
-      {/* Comments List */}
       {loading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -138,7 +152,7 @@ interface CommentItemProps {
 }
 
 function CommentItem({ comment, projectId, onReplyAdded, isReply = false }: CommentItemProps) {
-  const { isLoggedIn, user } = useAuthStore();
+  const { isLoggedIn } = useAuthStore();
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -151,7 +165,8 @@ function CommentItem({ comment, projectId, onReplyAdded, isReply = false }: Comm
         content: replyText,
         parentId: comment.id,
       });
-      onReplyAdded(res.data.comment, comment.id);
+      const reply = res.data.comment ?? res.data;
+      onReplyAdded(reply, comment.id);
       setReplyText("");
       setShowReply(false);
       toast.success("Reply posted");
@@ -165,19 +180,19 @@ function CommentItem({ comment, projectId, onReplyAdded, isReply = false }: Comm
   return (
     <div className={`flex gap-3 ${isReply ? "ml-10" : ""}`}>
       <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={comment.user.avatar ?? ""} />
-        <AvatarFallback>{comment.user.name.charAt(0)}</AvatarFallback>
+        <AvatarImage src={comment.user?.avatarUrl ?? ""} />
+        <AvatarFallback>{comment.user?.name?.charAt(0) ?? "?"}</AvatarFallback>
       </Avatar>
       <div className="flex-1 space-y-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{comment.user.name}</span>
+          <span className="text-sm font-medium">{comment.user?.name}</span>
           <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+            {comment.createdAt &&
+              formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
           </span>
         </div>
         <p className="text-sm leading-relaxed">{comment.content}</p>
 
-        {/* Reply button */}
         {isLoggedIn && !isReply && (
           <button
             onClick={() => setShowReply(!showReply)}
@@ -187,11 +202,10 @@ function CommentItem({ comment, projectId, onReplyAdded, isReply = false }: Comm
           </button>
         )}
 
-        {/* Reply input */}
         {showReply && (
           <div className="space-y-2 mt-2">
             <Textarea
-              placeholder={`Reply to ${comment.user.name}...`}
+              placeholder={`Reply to ${comment.user?.name ?? "user"}...`}
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               rows={2}
@@ -206,7 +220,6 @@ function CommentItem({ comment, projectId, onReplyAdded, isReply = false }: Comm
           </div>
         )}
 
-        {/* Nested Replies */}
         {comment.replies && comment.replies.length > 0 && (
           <div className="space-y-3 mt-3">
             {comment.replies.map((reply) => (

@@ -70,12 +70,21 @@ export default function Navbar(){
                     </Avatar>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                    {user?.id ? (
                     <DropdownMenuItem asChild>
-                    <Link href={`/users/${user?.id}`}>
+                    <Link href={`/users/${user.id}`}>
                         <User className="mr-2 h-4 w-4" />
                         My Profile
                     </Link>
                     </DropdownMenuItem>
+                ) : (
+                    <DropdownMenuItem disabled>
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                        <User className="mr-2 h-4 w-4" />
+                        My Profile
+                    </span>
+                    </DropdownMenuItem>
+                )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />

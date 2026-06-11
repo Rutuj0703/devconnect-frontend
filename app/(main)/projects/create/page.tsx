@@ -98,13 +98,13 @@ export default function CreateProjectPage() {
     file: File,
     type: "image" | "video"
   ): Promise<string> => {
-    // Get presigned URL from backend
-    const { data } = await api.post("/upload/presigned-url", {
-      fileType: file.type,
-      uploadType: type,
+    const endpoint = type === "image" ? "/upload/image/presigned" : "/upload/video/presigned";
+
+    const { data } = await api.post(endpoint, {
+      fileName: file.name,
+      contentType: file.type,
     });
 
-    // Upload directly to S3
     await fetch(data.uploadUrl, {
       method: "PUT",
       body: file,
@@ -118,7 +118,7 @@ export default function CreateProjectPage() {
     try {
       setUploading(true);
       let coverImageUrl = "";
-      let videoUrl = "";
+      let demoVideoUrl = "";
 
       // Upload cover image
       if (coverImage) {
@@ -130,7 +130,7 @@ export default function CreateProjectPage() {
       // Upload video
       if (video) {
         setUploadProgress((prev) => ({ ...prev, video: true }));
-        videoUrl = await uploadToS3(video, "video");
+        demoVideoUrl = await uploadToS3(video, "video");
         setUploadProgress((prev) => ({ ...prev, video: false }));
       }
 
@@ -141,12 +141,12 @@ export default function CreateProjectPage() {
         repoUrl: formData.repoUrl || undefined,
         liveUrl: formData.liveUrl || undefined,
         coverImage: coverImageUrl || undefined,
-        videoUrl: videoUrl || undefined,
+        demoVideoUrl: demoVideoUrl || undefined,
         tags,
       });
-
+      console.log("Response:", res.data);
       toast.success("Project created successfully!");
-      router.push(`/projects/${res.data.project.id}`);
+      router.push(`/projects/${res.data.id}`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to create project");
     } finally {

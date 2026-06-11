@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, MessageCircle, Eye, Github, ExternalLink } from "lucide-react";
+import { Heart, MessageCircle, Eye, Github, ExternalLink, Trash } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,12 +16,13 @@ import { toast } from "sonner";
 
 interface ProjectCardProps {
   project: Project;
-}
+  onDelete?: (id: string) => void;
+} 
 
 export default function ProjectCard({ project }: ProjectCardProps) {
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, user } = useAuthStore();
   const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(project._count.likes);
+  const [likeCount, setLikeCount] = useState(project._count?.likes ?? 0);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault(); // prevent navigating to project page
@@ -56,7 +57,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+            <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-primary/20 to-primary/5">
               <span className="text-4xl">💻</span>
             </div>
           )}
@@ -66,11 +67,11 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           {/* Author */}
           <div className="flex items-center gap-2">
             <Avatar className="h-7 w-7">
-              <AvatarImage src={project.user.avatar ?? ""} />
-              <AvatarFallback>{project.user.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={project.user?.avatarUrl ?? ""} />
+              <AvatarFallback>{project.user?.name?.charAt(0) ?? "?"}</AvatarFallback>
             </Avatar>
             <span className="text-sm text-muted-foreground hover:text-foreground">
-              {project.user.name}
+              {project.user?.name ?? "Unknown"}
             </span>
             <span className="text-xs text-muted-foreground ml-auto">
               {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })}
@@ -90,13 +91,13 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           {/* Tags */}
           {project.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {project.tags.slice(0, 4).map((tag) => (
-                <Badge key={tag.id} variant="secondary" className="text-xs">
-                  {tag.name}
+              {project.tags.slice(0, 4).map((tag, index) => (
+                <Badge key={tag.tag.id ?? index} variant="secondary" className="text-xs">
+                  {tag.tag.name}
                 </Badge>
               ))}
               {project.tags.length > 4 && (
-                <Badge variant="outline" className="text-xs">
+                <Badge key="more" variant="outline" className="text-xs">
                   +{project.tags.length - 4}
                 </Badge>
               )}
@@ -121,12 +122,12 @@ export default function ProjectCard({ project }: ProjectCardProps) {
 
             <span className="flex items-center gap-1 text-sm text-muted-foreground">
               <MessageCircle className="h-4 w-4" />
-              <span>{project._count.comments}</span>
+              <span>{project._count?.comments ?? 0}</span>
             </span>
 
             <span className="flex items-center gap-1 text-sm text-muted-foreground">
               <Eye className="h-4 w-4" />
-              <span>{project.viewCount}</span>
+              <span>{project.viewsCount}</span>
             </span>
           </div>
 
@@ -156,6 +157,30 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                 }}
               >
                 <ExternalLink className="h-4 w-4" />
+              </Button>
+            )}
+
+            {/* Delete (owner only) */}
+            {user?.id && project.user?.id && user.id === project.user.id && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const ok = confirm('Delete this project? This action cannot be undone.');
+                  if (!ok) return;
+                  try {
+                    await api.delete(`/projects/${project.id}`);
+                    toast.success('Project deleted');
+                    if (typeof onDelete === 'function') onDelete(project.id);
+                  } catch (err) {
+                    toast.error('Failed to delete project');
+                  }
+                }}
+              >
+                <Trash className="h-4 w-4" />
               </Button>
             )}
           </div>
