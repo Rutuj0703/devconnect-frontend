@@ -115,13 +115,13 @@ export default function UserProfilePage() {
         await api.delete(`/users/${id}/follow`);
         setIsFollowing(false);
         setStats((prev) =>
-          prev ? { ...prev, followers: Math.max(prev.followers - 1, 0) } : prev
+          prev ? { ...prev, followersCount: Math.max(prev.followersCount - 1, 0) } : prev
         );
       } else {
         await api.post(`/users/${id}/follow`);
         setIsFollowing(true);
         setStats((prev) =>
-          prev ? { ...prev, followers: prev.followers + 1 } : prev
+          prev ? { ...prev, followersCount: prev.followersCount + 1 } : prev
         );
       }
     } catch (err) {
